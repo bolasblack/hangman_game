@@ -27,9 +27,10 @@ module.exports = class Gamer
       guessResult = yield @table.guess @sessionId, suggestion.toUpperCase()
       @currWordSession.receiveResult guessResult
       if @currWordSession.isWordGuessFinished()
-        @letsGuess 'next'
-      else if @isSessionFinished guessResult
-        @printResult()
+        if @isSessionFinished guessResult
+          @printResult()
+        else
+          @letsGuess 'next'
       else
         @letsGuess()
 
