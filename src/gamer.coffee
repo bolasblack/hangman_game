@@ -2,79 +2,46 @@
 
 _ = require 'lodash'
 co = require 'co'
-fetch = require 'node-fetch'
 Promise = require 'bluebird'
-
-fetch.Promise = Promise
-
-letterSortedByFrequency = 'E T A O I N S H R D L C U M W F G Y P B V K J X Q Z'.split ' '
-
-class WordSession
-  constructor: (@sessionInfo, @gamer) ->
-    @worldLength = @sessionInfo.word.length
-    @guess 0
-
-  guess: (charIndex) ->
-    @lastTriedCharIndex = charIndex
-    @gamer.guess letterSortedByFrequency[charIndex], this
-
-  guessResult: (data) =>
-    # 如果还没猜完
-    if _.contains(data.word, '*')
-      # 如果超过是猜测次数就到下一个单词
-      if data.wrongGuessCountOfCurrentWord is @gamer.gameInfo.numberOfGuessAllowedForEachWord
-        @nextWord data
-
-      # 否则就接着猜
-      else
-        @guess @lastTriedCharIndex + 1
-
-    # 如果单词猜完了
-    else
-      @nextWord data
-
-  nextWord: (lastGuessResult) -> co =>
-    console.log 'lastGuessResult', JSON.stringify lastGuessResult
-    if lastGuessResult.totalWordCount is @gamer.gameInfo.numberOfWordsToGuess
-      console.log 'final score: ', yield @gamer.getResult()
-      @gamer.submitSession()
-    else
-      @gamer.nextWord()
+GameTable = require './game_table'
+WordSession = require './word_session'
 
 module.exports = class Gamer
-  constructor: (@urlPrefix, @playerId) ->
-
-  requestWithData: (inputData) =>
-    self = this
-    console.log 'send request', inputData
-    body = JSON.stringify _.extend (if @sessionId then {@sessionId} else {@playerId}), inputData
-    headers = 'Content-Type': 'application/json'
-    fetch("#{@urlPrefix.replace /\/$/, ''}/game/on", {method: 'post', body, headers})
-      .then (res) -> co ->
-        resp = yield res.text()
-        if 200 <= res.status < 300 then resp else Promise.reject resp
-      .then (resp) ->
-        JSON.parse resp
-      .then (data) ->
-        self.sessionId = data.sessionId if data.sessionId and not self.sessionId
-        console.log 'receive data', JSON.stringify data.data
-        data.data
+  constructor: (urlPrefix, playerId) ->
+    @table = new GameTable urlPrefix, playerId
 
   startGame: -> co =>
-    console.log 'startGame'
-    @gameInfo = yield @requestWithData action: 'startGame'
-    @nextWord()
+    data = yield @table.startGame()
+    {@sessionId, data: @gameInfo} = data
+    @letsGuess 'next'
 
-  nextWord: => co =>
-    console.log 'nextWorld'
-    result = yield @requestWithData action: 'nextWord'
-    new WordSession result, this
+  letsGuess: (whichOne) ->
+    promise = co =>
+      if whichOne is 'next'
+        wordInfo = yield @table.nextWord @sessionId
+        @currWordSession = new WordSession wordInfo, this
 
-  guess: (char, wordSession) -> co =>
-    wordSession.guessResult yield @requestWithData action: 'guessWord', guess: char
+      guessResult = yield @table.guess @sessionId, @currWordSession.suggestChar()
+      @currWordSession.receiveResult guessResult
+      if @currWordSession.isWordGuessFinished()
+        @letsGuess 'next'
+      else if @isSessionFinished guessResult
+        @printResult()
+      else
+        @letsGuess()
 
-  getResult: ->
-    @requestWithData action: 'getResult'
+    promise.catch (err) =>
+      try
+        data = JSON.parse err
+      catch err
+        Promise.reject err
+      if data.message is 'No more guess left.'
+        @letsGuess 'next'
+      else
+        err
 
-  submitSession: ->
-    @requestWithData action: 'submitResult'
+  isSessionFinished: (guessResult) ->
+    guessResult.totalWordCount is @gameInfo.numberOfWordsToGuess
+
+  printResult: -> co =>
+    console.log 'Current Score: ', JSON.stringify yield @table.getResult()
