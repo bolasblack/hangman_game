@@ -21,7 +21,10 @@ module.exports = class Gamer
         wordInfo = yield @table.nextWord @sessionId
         @currWordSession = new WordSession wordInfo, this
 
-      guessResult = yield @table.guess @sessionId, @currWordSession.suggestChar().toUpperCase()
+      suggestion = @currWordSession.suggestChar()
+      return @letsGuess 'next' if not suggestion
+
+      guessResult = yield @table.guess @sessionId, suggestion.toUpperCase()
       @currWordSession.receiveResult guessResult
       if @currWordSession.isWordGuessFinished()
         @letsGuess 'next'
@@ -33,12 +36,12 @@ module.exports = class Gamer
     promise.catch (err) =>
       try
         data = JSON.parse err
-      catch err
+      catch throwErr
         Promise.reject err
-      if data.message is 'No more guess left.'
+      if data?.message is 'No more guess left.'
         @letsGuess 'next'
       else
-        err
+        Promise.reject err
 
   isSessionFinished: (guessResult) ->
     guessResult.totalWordCount is @gameInfo.numberOfWordsToGuess

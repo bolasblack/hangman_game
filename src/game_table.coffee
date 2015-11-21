@@ -25,8 +25,9 @@ module.exports = class GameTable
       .then (resp) ->
         JSON.parse resp
       .then (data) ->
-        console.log 'receive data', JSON.stringify data.data
-        if options.unpackData isnt false then data.data else data
+        result = if options.unpackData isnt false then data.data else data
+        console.log 'receive data', JSON.stringify result
+        result
 
   startGame: ->
     console.log 'startGame'
