@@ -47,4 +47,4 @@ module.exports = class Gamer
     guessResult.totalWordCount is @gameInfo.numberOfWordsToGuess
 
   printResult: -> co =>
-    console.log 'Current Score: ', JSON.stringify yield @table.getResult()
+    console.log 'Current Score: ', JSON.stringify yield @table.getResult(@sessionId)
