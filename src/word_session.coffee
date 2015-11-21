@@ -1,14 +1,26 @@
 _ = require 'lodash'
+fs = require 'fs'
+sysPath = require 'path'
 
-letterSortedByFrequency = 'E T A O I N S H R D L C U M W F G Y P B V K J X Q Z'.split ' '
+words = _.compact fs.readFileSync(sysPath.join __dirname, '../data/words.txt').toString().split(/\n/)
+wordsGroupedByLength = _.groupBy words, 'length'
+mostCommonCharsGroupedByLength = _.reduce wordsGroupedByLength, (memo, words, length) ->
+  chars = words.join('').toLowerCase()
+  memo[length] = _('abcdefghijklmnopqrstuvwxyz'.split '').sortBy (char) ->
+    if (matchs = chars.match RegExp char, 'g') then matchs.length else 0
+  .reverse().value()
+  memo
+, {}
 
 module.exports = class WordSession
   constructor: (@wordInfo, @gamer) ->
-    @worldLength = @wordInfo.word.length
+    @wordLength = @wordInfo.word.length
+    @avaliableWords = wordsGroupedByLength[@wordLength]
+    @mostCommonChars = mostCommonCharsGroupedByLength[@wordLength]
     @nextTryCharIndex = 0
 
   suggestChar: ->
-    letterSortedByFrequency[@nextTryCharIndex]
+    @mostCommonChars[@nextTryCharIndex]
 
   receiveResult: (guessResult) ->
     @lastStat = guessResult

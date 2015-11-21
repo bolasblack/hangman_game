@@ -21,7 +21,7 @@ module.exports = class Gamer
         wordInfo = yield @table.nextWord @sessionId
         @currWordSession = new WordSession wordInfo, this
 
-      guessResult = yield @table.guess @sessionId, @currWordSession.suggestChar()
+      guessResult = yield @table.guess @sessionId, @currWordSession.suggestChar().toUpperCase()
       @currWordSession.receiveResult guessResult
       if @currWordSession.isWordGuessFinished()
         @letsGuess 'next'
