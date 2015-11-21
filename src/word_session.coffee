@@ -15,6 +15,10 @@ mostCommonCharsGroupedByLength = _.reduce wordsGroupedByLength, (memo, words, le
   memo
 , {}
 
+log = (str...) ->
+  return if process.env.NODE_ENV isnt 'debug'
+  console.log str...
+
 module.exports = class WordSession
   constructor: (@wordInfo, @gamer) ->
     @wordLength = @wordInfo.word.length
@@ -23,9 +27,17 @@ module.exports = class WordSession
     @usedChars = []
 
   suggestChar: ->
-    return @_suggestByFrequency() if not @lastStat
-    return @_suggestByFrequency() if not suggestion = @_suggestByRegExp()
-    suggestion
+    if not @lastStat
+      suggest = @_suggestByFrequency()
+      log '************ 初次建议', suggest
+      suggest
+    else if not suggestion = @_suggestByRegExp()
+      suggest = @_suggestByFrequency()
+      log '************ 备选词库枯竭', suggest, '已用字母', JSON.stringify(@usedChars)
+      suggest
+    else
+      log '************ 正则方案建议', suggestion, '已用字母', JSON.stringify(@usedChars)
+      suggestion
 
   receiveResult: (guessResult) ->
     @lastStat = guessResult
@@ -45,12 +57,15 @@ module.exports = class WordSession
   # 把所有星号替换成可以尝试的字母来匹配单词，然后统计所有匹配到的单词的
   # 相应位置的字母词频，给出建议
   _suggestByRegExp: ->
-    pattern = @lastStat.word.replace(/\*/g, "[#{@mostCommonChars.join('')}]").toLowerCase()
+    pattern = @lastStat.word.replace(/\*/g, "([#{@mostCommonChars.join('')}])").toLowerCase()
     re = RegExp "^#{pattern}$"
+    log '************ 正则', re
     matches = _.compact _.flattenDeep @avaliableWords.map (word) ->
-      if (matches = word.match re) then matches.slice(1) else null
+      if wordMatches = word.match re then wordMatches.slice(1) else null
     return if _.isEmpty matches
-    char = _.first getStringLetterFrequency(matches).filter (char) => char not in @usedChars
+    avaliableChars = getStringLetterFrequency(matches).filter (char) => char not in @usedChars
+    log '************ 正则可用字母', JSON.stringify avaliableChars
+    char = _.first avaliableChars
     @_removeCharFromAlternative char
     char
 
